@@ -1,0 +1,55 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique user ID from Firebase Auth." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "The user's role (admin or user)." }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A legal question asked by a user and the AI's response.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID for the question." },
+        "user_id": { "type": "string", "description": "The ID of the user who asked the question." },
+        "question_text": { "type": "string", "description": "The text of the question asked." },
+        "ai_response": { "type": "string", "description": "The AI-generated legal response." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the question was asked." }
+      },
+      "required": ["id", "user_id", "question_text", "ai_response", "timestamp"]
+    },
+    "Law": {
+      "title": "Law",
+      "description": "A law entry in the San Andreas Penal Code.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID for the law." },
+        "category": { "type": "string", "enum": ["Traffic", "Felony", "Misdemeanor", "Police Powers", "Weapons"], "description": "The category of the law." },
+        "title": { "type": "string", "description": "The title of the law." },
+        "description": { "type": "string", "description": "A detailed description of the law." },
+        "penalty": { "type": "string", "description": "The statutory penalty for violating the law." }
+      },
+      "required": ["id", "category", "title", "description", "penalty"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/questions/{questionId}": {
+      "schema": "Question",
+      "description": "History of questions asked."
+    },
+    "/laws/{lawId}": {
+      "schema": "Law",
+      "description": "The official law codex."
+    }
+  }
+}

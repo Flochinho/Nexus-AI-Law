@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - id: string (required) - The user's unique ID.
+    //   - email: string (required, email format) - The user's email.
+    //   - role: string (required, enum: ['admin', 'user']) - The user's role.
+    //
+    // Collection: questions
+    // Document ID: {questionId}
+    // Fields:
+    //   - id: string (required) - Unique question ID.
+    //   - user_id: string (required) - The ID of the user who asked.
+    //   - question_text: string (required, max 1000 chars) - The question text.
+    //   - ai_response: string (required, max 5000 chars) - The AI's response.
+    //   - timestamp: string (required, ISO 8601 format) - When it was asked.
+    //
+    // Collection: laws
+    // Document ID: {lawId}
+    // Fields:
+    //   - id: string (required) - Unique law ID.
+    //   - category: string (required, enum: ['Traffic', 'Felony', 'Misdemeanor', 'Police Powers', 'Weapons'])
+    //   - title: string (required, max 200 chars) - The law title.
+    //   - description: string (required, max 2000 chars) - The law description.
+    //   - penalty: string (required, max 500 chars) - The law penalty.
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "minecraftfor12391@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['id', 'email', 'role']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'user'];
+    }
+
+    function isValidQuestion(data) {
+      return hasOnlyAllowedFields(['id', 'user_id', 'question_text', 'ai_response', 'timestamp']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.user_id is string && data.user_id == request.auth.uid &&
+             data.question_text is string && data.question_text.size() > 0 && data.question_text.size() <= 1000 &&
+             data.ai_response is string && data.ai_response.size() > 0 && data.ai_response.size() <= 5000 &&
+             isValidDateString(data.timestamp);
+    }
+
+    function isValidLaw(data) {
+      return hasOnlyAllowedFields(['id', 'category', 'title', 'description', 'penalty']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.category in ['Traffic', 'Felony', 'Misdemeanor', 'Police Powers', 'Weapons'] &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 2000 &&
+             data.penalty is string && data.penalty.size() > 0 && data.penalty.size() <= 500;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /questions/{questionId} {
+      allow read: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidQuestion(request.resource.data);
+      allow update: if false; // Questions are immutable history
+      allow delete: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+    }
+
+    match /laws/{lawId} {
+      allow read: if true; // Laws are public for all users
+      allow create, update, delete: if isAdmin() && isValidLaw(request.resource.data);
+    }
+  }
+}
