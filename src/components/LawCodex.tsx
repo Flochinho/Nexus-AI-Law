@@ -1,23 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, ChevronUp, Scale, ShieldAlert, Gavel, Info, TrafficCone, Zap, FileText } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, ChevronDown, ChevronUp, Scale, ShieldAlert, Gavel, Info, TrafficCone, Zap, FileText, BookOpen, Filter, Terminal, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-
-interface Law {
-  id: string;
-  category: 'Traffic' | 'Felony' | 'Misdemeanor' | 'Police Powers' | 'Weapons';
-  title: string;
-  description: string;
-  penalty: string;
-}
+import { motion, AnimatePresence } from 'motion/react';
+import { GEORGIAN_LAWS, Law } from '../constants/laws';
 
 export default function LawCodex() {
-  const [laws, setLaws] = useState<Law[]>([]);
+  const [laws, setLaws] = useState<Law[]>(GEORGIAN_LAWS);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const q = query(collection(db, 'laws'), orderBy('title', 'asc'));
@@ -26,162 +19,237 @@ export default function LawCodex() {
       snapshot.docs.forEach((doc) => {
         loadedLaws.push({ id: doc.id, ...doc.data() } as Law);
       });
-      setLaws(loadedLaws);
-      setLoading(false);
+      if (loadedLaws.length > 0) {
+        setLaws(loadedLaws);
+      }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'laws');
-      setLoading(false);
+      console.error('Nexus Laws Codex Sync Error:', error);
     });
 
     return () => unsubscribe();
   }, []);
 
-  const categories = ['Traffic', 'Felony', 'Misdemeanor', 'Police Powers', 'Weapons'];
+  const categories = ['საპროცესო', 'სისხლის', 'იმუნიტეტი', 'სპეციალური'];
 
-  const filteredLaws = laws.filter(law => {
-    const matchesSearch = law.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         law.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = activeCategory ? law.category === activeCategory : true;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredLaws = useMemo(() => {
+    return laws.filter(law => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = 
+        law.title.toLowerCase().includes(searchLower) || 
+        law.description.toLowerCase().includes(searchLower) ||
+        (law.id && law.id.toLowerCase().includes(searchLower));
+      const matchesCategory = activeCategory ? law.category === activeCategory : true;
+      return matchesSearch && matchesCategory;
+    });
+  }, [searchTerm, activeCategory, laws]);
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'Traffic': return <TrafficCone className="w-4 h-4 text-orange-400" />;
-      case 'Felony': return <ShieldAlert className="w-4 h-4 text-red-500" />;
-      case 'Misdemeanor': return <Zap className="w-4 h-4 text-yellow-400" />;
-      case 'Police Powers': return <Scale className="w-4 h-4 text-blue-400" />;
-      case 'Weapons': return <Gavel className="w-4 h-4 text-purple-400" />;
-      default: return <FileText className="w-4 h-4 text-gray-400" />;
+      case 'საპროცესო': return <FileText size={24} />;
+      case 'სისხლის': return <Gavel size={24} />;
+      case 'იმუნიტეტი': return <ShieldAlert size={24} />;
+      case 'სპეციალური': return <Zap size={24} />;
+      default: return <FileText size={24} />;
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0a] text-white font-sans p-6 overflow-y-auto">
-      <div className="max-w-4xl mx-auto w-full space-y-8">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic flex items-center gap-3">
-            <FileText className="text-blue-500 w-8 h-8" />
-            LAW <span className="text-blue-500">CODEX</span>
-          </h1>
-          <p className="text-blue-300/60 text-sm font-mono uppercase tracking-widest">
-            Official Penal Code of San Andreas
-          </p>
-        </div>
+    <div className="flex flex-col h-full bg-[#050505] text-white font-sans relative overflow-hidden">
+      {/* Background Decorative Elements */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-nexus-accent/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full pointer-events-none" />
 
-        {/* Search and Filter */}
-        <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-300/30 w-5 h-5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search laws, codes, or penalties..."
-              className="w-full bg-[#1a1a1a] border border-blue-900/30 rounded-2xl py-4 pl-12 pr-6 text-white placeholder-blue-300/30 focus:outline-none focus:border-blue-500/50 transition-all shadow-xl"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setActiveCategory(null)}
-              className={cn(
-                "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border",
-                !activeCategory 
-                  ? "bg-blue-600 border-blue-500 text-white" 
-                  : "bg-[#1a1a1a] border-blue-900/20 text-blue-300/50 hover:border-blue-500/30"
-              )}
-            >
-              All
-            </button>
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border flex items-center gap-2",
-                  activeCategory === cat 
-                    ? "bg-blue-600 border-blue-500 text-white" 
-                    : "bg-[#1a1a1a] border-blue-900/20 text-blue-300/50 hover:border-blue-500/30"
-                )}
-              >
-                {getCategoryIcon(cat)}
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Law List */}
-        <div className="space-y-3">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <Scale className="w-10 h-10 text-blue-600 animate-pulse" />
-              <p className="text-blue-300/30 font-mono uppercase tracking-widest text-xs">Accessing Archives...</p>
-            </div>
-          ) : filteredLaws.length > 0 ? (
-            filteredLaws.map(law => (
-              <div
-                key={law.id}
-                className={cn(
-                  "bg-[#1a1a1a] border border-blue-900/20 rounded-2xl overflow-hidden transition-all",
-                  expandedId === law.id ? "border-blue-500/50 ring-1 ring-blue-500/20" : "hover:border-blue-500/30"
-                )}
-              >
-                <button
-                  onClick={() => setExpandedId(expandedId === law.id ? null : law.id)}
-                  className="w-full p-5 flex items-center justify-between text-left group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center bg-[#222] border border-blue-900/20 group-hover:border-blue-500/30 transition-all",
-                      expandedId === law.id && "bg-blue-900/20 border-blue-500/50"
-                    )}>
-                      {getCategoryIcon(law.category)}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg text-white group-hover:text-blue-300 transition-colors">{law.title}</h3>
-                      <span className={cn(
-                        "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border",
-                        law.category === 'Felony' ? "text-red-400 border-red-900/30 bg-red-900/10" :
-                        law.category === 'Traffic' ? "text-orange-400 border-orange-900/30 bg-orange-900/10" :
-                        law.category === 'Misdemeanor' ? "text-yellow-400 border-yellow-900/30 bg-yellow-900/10" :
-                        "text-blue-400 border-blue-900/30 bg-blue-900/10"
-                      )}>
-                        {law.category}
-                      </span>
-                    </div>
-                  </div>
-                  {expandedId === law.id ? <ChevronUp className="text-blue-500" /> : <ChevronDown className="text-blue-300/30" />}
-                </button>
-
-                {expandedId === law.id && (
-                  <div className="p-5 pt-0 border-t border-blue-900/10 bg-[#121212]/50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="space-y-2">
-                      <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Description</h4>
-                      <p className="text-gray-300 text-sm leading-relaxed">{law.description}</p>
-                    </div>
-                    <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl flex items-center gap-4">
-                      <div className="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center shrink-0">
-                        <Gavel className="w-4 h-4 text-blue-400" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Statutory Penalty</h4>
-                        <p className="text-blue-100 font-mono text-xs">{law.penalty}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+      {/* Header */}
+      <header className="px-10 py-12 border-b border-white/5 bg-black/40 backdrop-blur-2xl z-10">
+        <div className="max-w-6xl mx-auto space-y-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-nexus-accent/10 border border-nexus-accent/20 rounded-full">
+                <BookOpen size={12} className="text-nexus-accent" />
+                <p className="text-[10px] text-nexus-accent uppercase tracking-[0.4em] font-mono font-black italic">Judicial Database</p>
               </div>
-            ))
-          ) : (
-            <div className="text-center py-20 bg-[#1a1a1a] border border-dashed border-blue-900/30 rounded-3xl">
-              <Info className="w-12 h-12 text-blue-900/30 mx-auto mb-4" />
-              <p className="text-blue-300/30 font-mono uppercase tracking-widest">No matching laws found in codex</p>
+              <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white uppercase italic leading-none">
+                საკანონმდებლო <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-nexus-accent to-blue-400">კოდექსი.</span>
+              </h1>
             </div>
+            
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setActiveCategory(null)}
+                className={cn(
+                  "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] italic transition-all border",
+                  !activeCategory
+                    ? "bg-nexus-accent border-nexus-accent text-white shadow-[0_0_30px_rgba(59,130,246,0.4)]"
+                    : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white"
+                )}
+              >
+                ყველა
+              </button>
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={cn(
+                    "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] italic transition-all border",
+                    activeCategory === cat
+                      ? "bg-nexus-accent border-nexus-accent text-white shadow-[0_0_30px_rgba(59,130,246,0.4)]"
+                      : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative group max-w-3xl">
+            <div className="absolute -inset-1 bg-gradient-to-r from-nexus-accent/40 to-transparent rounded-[2rem] blur-xl opacity-0 group-focus-within:opacity-100 transition duration-700" />
+            <div className="relative flex items-center">
+              <Search className="absolute left-6 text-white/20 group-focus-within:text-nexus-accent transition-colors" size={20} />
+              <input
+                type="text"
+                placeholder="მოძებნეთ მუხლი ან საკვანძო სიტყვა..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-[#0f0f0f] border border-white/10 rounded-[2rem] py-6 pl-16 pr-8 text-white placeholder-white/10 focus:outline-none focus:border-nexus-accent/50 transition-all text-sm font-medium"
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-10 scrollbar-hide">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 gap-6">
+            <AnimatePresence mode="popLayout">
+              {filteredLaws.map((law, idx) => (
+                <motion.div
+                  key={law.id}
+                  layout
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.4, delay: idx * 0.01 }}
+                  className={cn(
+                    "group bg-[#0f0f0f] border border-white/5 rounded-[2.5rem] overflow-hidden hover:border-nexus-accent/30 transition-all duration-500",
+                    expandedId === law.id && "border-nexus-accent/40 bg-[#111] shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                  )}
+                >
+                  <button
+                    onClick={() => setExpandedId(expandedId === law.id ? null : law.id)}
+                    className="w-full p-8 text-left flex items-center justify-between gap-6"
+                  >
+                    <div className="flex items-center gap-6">
+                      <div className={cn(
+                        "w-14 h-14 rounded-2xl flex items-center justify-center border transition-all duration-500",
+                        expandedId === law.id 
+                          ? "bg-nexus-accent border-nexus-accent text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                          : "bg-white/5 border-white/10 text-white/20 group-hover:text-nexus-accent group-hover:border-nexus-accent/30"
+                      )}>
+                        {getCategoryIcon(law.category)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-3 mb-1">
+                          <span className="text-[10px] font-mono font-bold text-nexus-accent uppercase tracking-[0.2em]">{law.category}</span>
+                          <div className="w-1 h-1 rounded-full bg-white/10" />
+                          <span className="text-[10px] font-mono font-bold text-white/20 uppercase tracking-[0.2em]">ID: {law.id}</span>
+                        </div>
+                        <h3 className="text-xl font-black text-white/90 tracking-tight group-hover:text-white transition-colors">{law.title}</h3>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-white/20 transition-all duration-500",
+                      expandedId === law.id && "rotate-180 bg-nexus-accent/10 border-nexus-accent/20 text-nexus-accent"
+                    )}>
+                      <ChevronDown size={20} />
+                    </div>
+                  </button>
+
+                  <AnimatePresence>
+                    {expandedId === law.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.4, ease: "circOut" }}
+                      >
+                        <div className="px-8 pb-8 space-y-8">
+                          <div className="h-px bg-white/5" />
+                          <div className="space-y-4">
+                            <h4 className="text-[10px] font-black text-nexus-accent uppercase tracking-[0.3em] italic">აღწერა / განმარტება</h4>
+                            <p className="text-white/60 text-lg leading-relaxed font-medium">{law.description}</p>
+                          </div>
+                          {law.penalty && (
+                            <div className="p-6 bg-nexus-accent/5 border border-nexus-accent/20 rounded-3xl flex items-center justify-between group/penalty">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-nexus-accent/20 flex items-center justify-center text-nexus-accent">
+                                  <ShieldAlert size={20} />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black text-nexus-accent uppercase tracking-[0.3em] italic">სანქცია / სასჯელი</p>
+                                  <p className="text-white font-bold text-lg">{law.penalty}</p>
+                                </div>
+                              </div>
+                              <div className="px-4 py-2 bg-nexus-accent/10 rounded-xl text-[10px] font-black text-nexus-accent uppercase tracking-[0.2em] opacity-0 group-hover/penalty:opacity-100 transition-opacity">
+                                Enforced
+                              </div>
+                            </div>
+                          )}
+
+                          {law.examples && law.examples.length > 0 && (
+                            <div className="space-y-4">
+                              <h4 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] italic">პრაქტიკული მაგალითები</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {law.examples.map((example, i) => (
+                                  <div key={i} className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl flex gap-4 group/example hover:bg-white/[0.04] transition-colors">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-nexus-accent/40 mt-2 group-hover/example:scale-125 transition-transform" />
+                                    <p className="text-white/40 text-sm leading-relaxed group-hover:text-white/60 transition-colors">{example}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {filteredLaws.length === 0 && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="py-32 text-center space-y-6"
+            >
+              <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto border border-white/10">
+                <Search size={32} className="text-white/10" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black text-white/40 uppercase italic tracking-tight">მონაცემები ვერ მოიძებნა</h3>
+                <p className="text-white/20 text-sm font-medium">სცადეთ სხვა საკვანძო სიტყვა ან შეცვალეთ ფილტრი.</p>
+              </div>
+            </motion.div>
           )}
         </div>
       </div>
+
+      {/* Footer Info */}
+      <footer className="px-10 py-6 bg-black/60 backdrop-blur-3xl border-t border-white/5 flex items-center justify-center gap-12">
+        <div className="flex items-center gap-3">
+          <Terminal size={14} className="text-nexus-accent/30" />
+          <p className="text-[10px] text-white/20 uppercase tracking-[0.3em] font-mono font-bold">Nexus Law Engine v4.0</p>
+        </div>
+        <div className="w-1.5 h-1.5 rounded-full bg-white/5" />
+        <div className="flex items-center gap-3">
+          <Sparkles size={14} className="text-nexus-accent/30" />
+          <p className="text-[10px] text-white/20 uppercase tracking-[0.3em] font-mono font-bold">Neural Database Active</p>
+        </div>
+      </footer>
     </div>
   );
 }

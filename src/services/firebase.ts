@@ -61,11 +61,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-export async function seedLaws(laws: Omit<Law, 'id'>[]) {
+export async function seedLaws(laws: Law[]) {
   try {
     const batch = laws.map(async (law) => {
-      const id = Date.now().toString() + Math.random().toString(36).substring(7);
-      await setDoc(doc(db, 'laws', id), { ...law, id });
+      await setDoc(doc(db, 'laws', law.id), law);
     });
     await Promise.all(batch);
   } catch (error) {
@@ -75,10 +74,11 @@ export async function seedLaws(laws: Omit<Law, 'id'>[]) {
 
 interface Law {
   id: string;
-  category: 'Traffic' | 'Felony' | 'Misdemeanor' | 'Police Powers' | 'Weapons';
+  category: 'საპროცესო' | 'სისხლის' | 'იმუნიტეტი' | 'სპეციალური';
   title: string;
   description: string;
-  penalty: string;
+  penalty?: string;
+  examples?: string[];
 }
 
 // Test connection
